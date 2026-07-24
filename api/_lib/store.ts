@@ -140,7 +140,7 @@ export async function deleteCollectionDocument(collectionName: string, documentI
   await adminDb.collection(collectionName).doc(documentId).delete();
 }
 
-export async function replaceCollectionDocuments<T extends { id: string }>(
+export async function replaceCollectionDocuments<T extends { id: string; priority?: number; order?: number }>(
   collectionName: string,
   documents: T[],
 ) {

@@ -2,8 +2,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    function isSignedIn() {
-      return request.auth != null;
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
     }
     
     function isValidId(id) {
@@ -15,70 +15,71 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Products collection: public read, write if authenticated
+    // Storefront content is read through public APIs. CMS writes require the
+    // Firebase custom claim assigned by the Super Admin bootstrap process.
     match /products/{productId} {
       allow read: if true;
-      allow write: if isSignedIn() || true; // flexible for applet context
+      allow write: if isAdmin();
     }
 
     // Banners collection
     match /banners/{bannerId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
     // Announcements
     match /announcements/{announcementId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
     // Categories
     match /categories/{categoryId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
     // Age categories
     match /ageCategories/{ageCategoryId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
-    // Orders
+    // Orders, customers, reviews and all mutations use server APIs. They are
+    // intentionally unavailable to direct Firestore clients.
     match /orders/{orderId} {
-      allow read: if true;
-      allow create: if true;
-      allow update, delete: if true;
+      allow read, write: if isAdmin();
     }
 
     // Coupons
     match /coupons/{couponId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
     // Reviews
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if true;
-      allow update, delete: if true;
+      allow write: if isAdmin();
     }
 
     // Customers
     match /customers/{customerId} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
 
     // Settings & Sections
     match /settings/{settingId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
     match /sections/{sectionId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
     match /test/{docId} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

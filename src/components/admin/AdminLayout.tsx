@@ -1,5 +1,8 @@
 import React from 'react';
 import { useStore } from '../../context/StoreContext';
+import { useAdminAuth } from '../../context/AdminAuthContext';
+import { navigateToPath } from '../../lib/browserRouting';
+import { type AdminTab } from '../../shared/adminAccess';
 import {
   LayoutDashboard,
   Image,
@@ -24,14 +27,14 @@ interface AdminLayoutProps {
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const {
-    setIsAdminOpen,
     adminTab,
     setAdminTab,
     siteSettings,
     refetchAllData
   } = useStore();
+  const { canAccessTab, logout } = useAdminAuth();
 
-  const menuItems = [
+  const menuItems: Array<{ id: AdminTab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
     { id: 'dashboard', label: 'Dashboard Analytics', icon: LayoutDashboard },
     { id: 'banners', label: 'Hero Banners (Flipkart Style)', icon: Image },
     { id: 'announcements', label: 'Scrolling Offer Strip', icon: Megaphone },
@@ -69,10 +72,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             🔄 Sync Data
           </button>
           <button
-            onClick={() => setIsAdminOpen(false)}
+            onClick={() => navigateToPath('/')}
             className="bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
           >
             <Eye className="w-4 h-4" /> View Live Store
+          </button>
+          <button
+            onClick={() => void logout()}
+            className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs px-4 py-2 rounded-xl transition-colors"
+          >
+            Sign out
           </button>
         </div>
       </header>
@@ -82,7 +91,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         {/* Navigation Sidebar */}
         <aside className="w-64 bg-slate-950/80 border-r border-slate-800 p-4 space-y-1 shrink-0 overflow-y-auto">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mb-2">Navigation</p>
-          {menuItems.map(item => {
+          {menuItems.filter((item) => canAccessTab(item.id)).map(item => {
             const Icon = item.icon;
             const isActive = adminTab === item.id;
             return (

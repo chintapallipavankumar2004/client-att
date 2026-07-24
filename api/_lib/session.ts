@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { SignJWT, jwtVerify } from 'jose';
+import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 import type { AdminPermission, AdminRole } from '../../src/shared/adminAccess';
 import { ROLE_PERMISSIONS, hasAdminPermission } from '../../src/shared/adminAccess';
 import type { AdminSessionUser } from '../../src/types';
@@ -15,7 +15,7 @@ const ACCOUNT_LOCK_MS = 1000 * 60 * 15;
 
 const secret = new TextEncoder().encode(env.adminSessionSecret);
 
-interface AdminSessionTokenPayload {
+interface AdminSessionTokenPayload extends JWTPayload {
   uid: string;
   email: string;
   name: string;
@@ -208,7 +208,11 @@ export async function getAdminSession(req: any, permission?: AdminPermission) {
       profileRef: docRef,
       profile,
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof SessionError) {
+      throw error;
+    }
+
     return null;
   }
 }

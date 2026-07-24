@@ -22,7 +22,7 @@ import { TrackOrderModal } from './components/TrackOrderModal';
 import { AdminView } from './components/AdminView';
 import { AdminLoginPage } from './components/admin/AdminLoginPage';
 import { buildAdminLoginPath, navigateToPath } from './lib/browserRouting';
-import { getAdminPath, getAdminTabFromPath } from './shared/adminAccess';
+import { ADMIN_ROUTES, getAdminPath, getAdminRouteFromPath, getAdminTabFromPath } from './shared/adminAccess';
 import { Sparkles, ArrowRight, ShieldCheck, Heart } from 'lucide-react';
 
 const AdminLoadingScreen: React.FC<{ message: string }> = ({ message }) => (
@@ -241,33 +241,59 @@ const StorefrontContent: React.FC = () => {
 
 const RoutedStoreApp: React.FC = () => {
   const location = useBrowserLocation();
-  const { adminUser, loading } = useAdminAuth();
+  const { adminUser, loading, canAccessTab } = useAdminAuth();
+  const isAdminPath = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
+  const adminRoute = getAdminRouteFromPath(location.pathname);
 
   useEffect(() => {
-    if (!location.pathname.startsWith('/admin') || location.pathname === '/admin/login') {
+    if (!isAdminPath || location.pathname === '/admin/login') {
       return;
     }
 
-    const tab = getAdminTabFromPath(location.pathname);
+    const tab = adminRoute?.tab || getAdminTabFromPath(location.pathname);
     const canonicalPath = getAdminPath(tab);
 
     if (location.pathname !== canonicalPath) {
       navigateToPath(canonicalPath, { replace: true });
     }
-  }, [location.pathname]);
+  }, [adminRoute?.tab, isAdminPath, location.pathname]);
+
+  useEffect(() => {
+    if (!isAdminPath || location.pathname === '/admin/login' || loading || adminUser) {
+      return;
+    }
+
+    navigateToPath(buildAdminLoginPath(location.pathname), { replace: true });
+  }, [adminUser, isAdminPath, loading, location.pathname]);
+
+  useEffect(() => {
+    if (!isAdminPath || location.pathname === '/admin/login' || loading || !adminUser || !adminRoute) {
+      return;
+    }
+
+    if (!canAccessTab(adminRoute.tab)) {
+      const firstAllowedRoute = Object.values(ADMIN_ROUTES).find((route) => canAccessTab(route.tab));
+      if (firstAllowedRoute) {
+        navigateToPath(firstAllowedRoute.path, { replace: true });
+      }
+    }
+  }, [adminRoute, adminUser, canAccessTab, isAdminPath, loading, location.pathname]);
 
   if (location.pathname === '/admin/login') {
     return <AdminLoginPage search={location.search} />;
   }
 
-  if (location.pathname.startsWith('/admin')) {
+  if (isAdminPath) {
     if (loading) {
       return <AdminLoadingScreen message="Validating your secure admin session..." />;
     }
 
     if (!adminUser) {
-      navigateToPath(buildAdminLoginPath(location.pathname), { replace: true });
       return <AdminLoadingScreen message="Redirecting to admin sign in..." />;
+    }
+
+    if (!adminRoute || !canAccessTab(adminRoute.tab)) {
+      return <AdminLoadingScreen message="You do not have permission to access this admin page." />;
     }
 
     return <AdminView />;

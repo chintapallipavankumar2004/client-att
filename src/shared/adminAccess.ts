@@ -183,6 +183,16 @@ export function getAdminTabFromPath(pathname: string): AdminTab {
   return 'dashboard';
 }
 
+export function getAdminRouteFromPath(pathname: string): AdminRouteDefinition | null {
+  const normalized = normalizeAdminPath(pathname);
+
+  return (
+    ALL_ROUTE_DEFINITIONS.find(
+      (route) => route.path === normalized || route.aliases?.includes(normalized),
+    ) || null
+  );
+}
+
 export function getAdminPath(tab: AdminTab): string {
   return ADMIN_ROUTES[tab].path;
 }
