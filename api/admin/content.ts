@@ -1,12 +1,12 @@
-import { ADMIN_COLLECTION_PERMISSIONS } from '../../src/shared/adminAccess';
-import { readJsonBody, sendJson } from '../_lib/http';
-import { recordAuditLog, requireAdminSession, SessionError } from '../_lib/session';
+import { ADMIN_COLLECTION_PERMISSIONS } from '../../src/shared/adminAccess.js';
+import { readJsonBody, sendJson } from '../_lib/http.js';
+import { recordAuditLog, requireAdminSession, SessionError } from '../_lib/session.js';
 import {
   createCollectionDocument,
   deleteCollectionDocument,
   replaceCollectionDocuments,
   upsertCollectionDocument,
-} from '../_lib/store';
+} from '../_lib/store.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {

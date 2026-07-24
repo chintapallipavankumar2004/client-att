@@ -11,22 +11,22 @@ Add these values to **Production**, **Preview**, and local development as approp
 - `ADMIN_SESSION_SECRET` — a new random secret of at least 32 bytes. Generate one with `openssl rand -base64 48`.
 
 No Firebase Admin credential or session secret may be exposed with a `VITE_` prefix.
+All five values must belong to the same Firebase project as `firebase-applet-config.json` — currently `akshvik-tiny-trends`.
 
 ## Create the first Super Admin
 
 1. In Firebase Console, enable **Authentication → Sign-in method → Email/Password**.
 2. Create the administrator in **Authentication → Users**, using a long unique password.
-3. From a trusted local Admin SDK script or Cloud Function, set the user custom claims:
+3. With a local service-account credential available, put the actual `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY` values in `.env.local`, then run the included one-time bootstrap command. It creates the user when needed, sets the custom claims, and creates `admins/<uid>`:
 
-   ```ts
-   await getAuth().setCustomUserClaims('<FIREBASE_UID>', {
-     admin: true,
-     role: 'super_admin',
-   });
+   ```powershell
+   $env:SUPER_ADMIN_EMAIL="admin@example.com"
+   $env:SUPER_ADMIN_PASSWORD="use-a-long-unique-password"
+   $env:SUPER_ADMIN_NAME="Store Owner"
+   npm.cmd run bootstrap:super-admin
    ```
 
-4. Create `admins/<FIREBASE_UID>` in Firestore with at least `{ email, name, role: 'super_admin', status: 'active' }`.
-5. Sign in at `/admin/login`. The first successful sign-in completes the audit/session profile fields automatically.
+4. Sign in at `/admin/login`. The first successful sign-in completes the audit/session profile fields automatically.
 
 Never place a default password or an administrator email in frontend source code or environment files committed to Git.
 

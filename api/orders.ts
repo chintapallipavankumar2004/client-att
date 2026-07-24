@@ -1,6 +1,6 @@
-import { createPublicOrder } from './_lib/store';
-import { readJsonBody, sendJson } from './_lib/http';
-import type { Order } from '../src/types';
+import { createPublicOrder } from './_lib/store.js';
+import { readJsonBody, sendJson } from './_lib/http.js';
+import type { Order } from '../src/types.js';
 
 type PublicOrderPayload = Parameters<typeof createPublicOrder>[0];
 

@@ -1,6 +1,6 @@
-import { requireAdminSession, SessionError } from '../_lib/session';
-import { getAdminData } from '../_lib/store';
-import { sendJson } from '../_lib/http';
+import { requireAdminSession, SessionError } from '../_lib/session.js';
+import { getAdminData } from '../_lib/store.js';
+import { sendJson } from '../_lib/http.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {

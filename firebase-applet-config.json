@@ -1,12 +1,8 @@
 {
-  "projectId": "centered-inn-mdw77",
-  "appId": "1:526585644827:web:8c06091630d9433be275be",
-  "apiKey": "AIzaSyCmPoL_j7U9tphIGvqlG90Z290Yq1NtKYk",
-  "authDomain": "centered-inn-mdw77.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-akshviktinytrend-7b9e865b-4038-413e-b998-a6e8c23bd7c2",
-  "storageBucket": "centered-inn-mdw77.firebasestorage.app",
-  "messagingSenderId": "526585644827",
-  "measurementId": "",
-  "oAuthClientId": "526585644827-sles1aa03fc43d8lmkqd711iqa6nh5ju.apps.googleusercontent.com",
-  "recaptchaSiteKey": ""
+  "apiKey": "AIzaSyAZyrqUU6n_BAaf8kPcb9f4vw_P5h5hWzE",
+  "authDomain": "akshvik-tiny-trends.firebaseapp.com",
+  "projectId": "akshvik-tiny-trends",
+  "storageBucket": "akshvik-tiny-trends.firebasestorage.app",
+  "messagingSenderId": "951904355754",
+  "appId": "1:951904355754:web:f5779e9268e93aec0b17d3"
 }

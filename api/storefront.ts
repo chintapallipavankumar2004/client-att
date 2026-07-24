@@ -1,5 +1,5 @@
-import { getStorefrontData } from './_lib/store';
-import { sendJson } from './_lib/http';
+import { getStorefrontData } from './_lib/store.js';
+import { sendJson } from './_lib/http.js';
 
 export default async function handler(_req: any, res: any) {
   try {

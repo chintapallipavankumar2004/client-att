@@ -1,5 +1,5 @@
-import { clearSessionCookie, endAdminSession, getAdminSession, recordAuditLog } from '../_lib/session';
-import { getRequestIp, getRequestUserAgent, sendJson } from '../_lib/http';
+import { clearSessionCookie, endAdminSession, getAdminSession, recordAuditLog } from '../_lib/session.js';
+import { getRequestIp, getRequestUserAgent, sendJson } from '../_lib/http.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {

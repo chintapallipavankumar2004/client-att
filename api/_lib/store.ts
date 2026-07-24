@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { adminDb } from './firebaseAdmin';
+import { adminDb } from './firebaseAdmin.js';
 import {
   initialAgeCategories,
   initialAnnouncements,
@@ -12,7 +12,7 @@ import {
   initialReviews,
   initialSections,
   initialSiteSettings,
-} from '../../src/data/initialData';
+} from '../../src/data/initialData.js';
 import type {
   AdminDashboardData,
   Coupon,
@@ -21,7 +21,7 @@ import type {
   Review,
   SiteSettings,
   StorefrontData,
-} from '../../src/types';
+} from '../../src/types.js';
 
 const SETTINGS_DOC_ID = 'storefront';
 

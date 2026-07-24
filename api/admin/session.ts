@@ -1,5 +1,5 @@
-import { clearSessionCookie, getAdminSession } from '../_lib/session';
-import { sendJson } from '../_lib/http';
+import { clearSessionCookie, getAdminSession } from '../_lib/session.js';
+import { sendJson } from '../_lib/http.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {

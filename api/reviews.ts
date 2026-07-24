@@ -1,5 +1,5 @@
-import { createPublicReview } from './_lib/store';
-import { readJsonBody, sendJson } from './_lib/http';
+import { createPublicReview } from './_lib/store.js';
+import { readJsonBody, sendJson } from './_lib/http.js';
 
 type PublicReviewPayload = Parameters<typeof createPublicReview>[0];
 

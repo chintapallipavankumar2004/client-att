@@ -1,11 +1,11 @@
 import { randomUUID } from 'crypto';
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
-import type { AdminPermission, AdminRole } from '../../src/shared/adminAccess';
-import { ROLE_PERMISSIONS, hasAdminPermission } from '../../src/shared/adminAccess';
-import type { AdminSessionUser } from '../../src/types';
-import { adminAuth, adminDb } from './firebaseAdmin';
-import { env } from './env';
-import { getRequestIp, getRequestUserAgent } from './http';
+import type { AdminPermission, AdminRole } from '../../src/shared/adminAccess.js';
+import { ROLE_PERMISSIONS, hasAdminPermission } from '../../src/shared/adminAccess.js';
+import type { AdminSessionUser } from '../../src/types.js';
+import { adminAuth, adminDb } from './firebaseAdmin.js';
+import { env } from './env.js';
+import { getRequestIp, getRequestUserAgent } from './http.js';
 
 const SESSION_COOKIE_NAME = '__Host-att_admin_session';
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 12;

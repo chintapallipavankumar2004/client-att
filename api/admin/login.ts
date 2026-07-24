@@ -1,5 +1,5 @@
-import { authenticateAdminWithPassword, beginAdminSession, recordAuditLog, SessionError } from '../_lib/session';
-import { getRequestIp, getRequestUserAgent, readJsonBody, sendJson } from '../_lib/http';
+import { authenticateAdminWithPassword, beginAdminSession, recordAuditLog, SessionError } from '../_lib/session.js';
+import { getRequestIp, getRequestUserAgent, readJsonBody, sendJson } from '../_lib/http.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
