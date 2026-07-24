@@ -1,0 +1,6 @@
+{
+  "name": "Akshvik Tiny Trends - Premium Kids Fashion",
+  "description": "Luxury & modern kids clothing store with custom CMS admin panel, Flipkart-style hero banners, age-based filters, flash deals, order tracking, and dynamic theme customization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
