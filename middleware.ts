@@ -1,4 +1,5 @@
 import { jwtVerify } from 'jose';
+import { DEVELOPMENT_ADMIN_MODE } from './src/shared/adminMode.js';
 
 const SESSION_COOKIE_NAME = '__Host-att_admin_session';
 
@@ -16,6 +17,11 @@ function getCookie(cookieHeader: string | null, name: string) {
 }
 
 export default async function middleware(request: Request) {
+  // DEVELOPMENT ONLY — remove this bypass by setting DEVELOPMENT_ADMIN_MODE to false.
+  if (DEVELOPMENT_ADMIN_MODE) {
+    return;
+  }
+
   const url = new URL(request.url);
 
   if (url.pathname === '/admin/login') {
@@ -28,13 +34,20 @@ export default async function middleware(request: Request) {
   const secret = process.env.ADMIN_SESSION_SECRET;
 
   if (!token || !secret) {
+    console.info('[admin-auth]', JSON.stringify({
+      event: 'middleware_redirect_to_login',
+      reason: !token ? 'session_missing' : 'session_secret_missing',
+      path: url.pathname,
+    }));
     return Response.redirect(loginUrl, 307);
   }
 
   try {
     await jwtVerify(token, new TextEncoder().encode(secret));
+    console.info('[admin-auth]', JSON.stringify({ event: 'middleware_session_valid', path: url.pathname }));
     return;
   } catch {
+    console.info('[admin-auth]', JSON.stringify({ event: 'middleware_redirect_to_login', reason: 'session_invalid', path: url.pathname }));
     return Response.redirect(loginUrl, 307);
   }
 }

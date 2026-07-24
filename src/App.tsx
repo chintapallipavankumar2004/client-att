@@ -23,6 +23,7 @@ import { AdminView } from './components/AdminView';
 import { AdminLoginPage } from './components/admin/AdminLoginPage';
 import { buildAdminLoginPath, navigateToPath } from './lib/browserRouting';
 import { ADMIN_ROUTES, getAdminPath, getAdminRouteFromPath, getAdminTabFromPath } from './shared/adminAccess';
+import { DEVELOPMENT_ADMIN_MODE } from './shared/adminMode';
 import { Sparkles, ArrowRight, ShieldCheck, Heart } from 'lucide-react';
 
 const AdminLoadingScreen: React.FC<{ message: string }> = ({ message }) => (
@@ -246,6 +247,12 @@ const RoutedStoreApp: React.FC = () => {
   const adminRoute = getAdminRouteFromPath(location.pathname);
 
   useEffect(() => {
+    if (DEVELOPMENT_ADMIN_MODE && location.pathname === '/admin/login') {
+      navigateToPath('/admin/dashboard', { replace: true });
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
     if (!isAdminPath || location.pathname === '/admin/login') {
       return;
     }
@@ -259,7 +266,7 @@ const RoutedStoreApp: React.FC = () => {
   }, [adminRoute?.tab, isAdminPath, location.pathname]);
 
   useEffect(() => {
-    if (!isAdminPath || location.pathname === '/admin/login' || loading || adminUser) {
+    if (DEVELOPMENT_ADMIN_MODE || !isAdminPath || location.pathname === '/admin/login' || loading || adminUser) {
       return;
     }
 
@@ -267,7 +274,14 @@ const RoutedStoreApp: React.FC = () => {
   }, [adminUser, isAdminPath, loading, location.pathname]);
 
   useEffect(() => {
-    if (!isAdminPath || location.pathname === '/admin/login' || loading || !adminUser || !adminRoute) {
+    if (
+      DEVELOPMENT_ADMIN_MODE ||
+      !isAdminPath ||
+      location.pathname === '/admin/login' ||
+      loading ||
+      !adminUser ||
+      !adminRoute
+    ) {
       return;
     }
 
@@ -280,6 +294,10 @@ const RoutedStoreApp: React.FC = () => {
   }, [adminRoute, adminUser, canAccessTab, isAdminPath, loading, location.pathname]);
 
   if (location.pathname === '/admin/login') {
+    if (DEVELOPMENT_ADMIN_MODE) {
+      return <AdminLoadingScreen message="Opening development admin dashboard..." />;
+    }
+
     return <AdminLoginPage search={location.search} />;
   }
 
@@ -292,7 +310,7 @@ const RoutedStoreApp: React.FC = () => {
       return <AdminLoadingScreen message="Redirecting to admin sign in..." />;
     }
 
-    if (!adminRoute || !canAccessTab(adminRoute.tab)) {
+    if (!DEVELOPMENT_ADMIN_MODE && (!adminRoute || !canAccessTab(adminRoute.tab))) {
       return <AdminLoadingScreen message="You do not have permission to access this admin page." />;
     }
 

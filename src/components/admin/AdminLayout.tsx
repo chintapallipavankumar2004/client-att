@@ -3,6 +3,7 @@ import { useStore } from '../../context/StoreContext';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { navigateToPath } from '../../lib/browserRouting';
 import { type AdminTab } from '../../shared/adminAccess';
+import { DEVELOPMENT_ADMIN_MODE } from '../../shared/adminMode';
 import {
   LayoutDashboard,
   Image,
@@ -77,12 +78,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           >
             <Eye className="w-4 h-4" /> View Live Store
           </button>
-          <button
-            onClick={() => void logout()}
-            className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs px-4 py-2 rounded-xl transition-colors"
-          >
-            Sign out
-          </button>
+          {!DEVELOPMENT_ADMIN_MODE ? (
+            <button
+              onClick={() => void logout()}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs px-4 py-2 rounded-xl transition-colors"
+            >
+              Sign out
+            </button>
+          ) : null}
         </div>
       </header>
 

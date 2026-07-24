@@ -6,6 +6,7 @@ import type { AdminSessionUser } from '../../src/types.js';
 import { adminAuth, adminDb } from './firebaseAdmin.js';
 import { env } from './env.js';
 import { getRequestIp, getRequestUserAgent } from './http.js';
+import { DEVELOPMENT_ADMIN_MODE } from '../../src/shared/adminMode.js';
 
 const SESSION_COOKIE_NAME = '__Host-att_admin_session';
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 12;
@@ -14,6 +15,17 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const ACCOUNT_LOCK_MS = 1000 * 60 * 15;
 
 const secret = new TextEncoder().encode(env.adminSessionSecret);
+
+const DEVELOPMENT_ADMIN_USER: AdminSessionUser = {
+  uid: 'development-admin',
+  email: 'demo-admin@local.invalid',
+  name: 'Development Demo Admin',
+  role: 'super_admin',
+  permissions: ROLE_PERMISSIONS.super_admin,
+  expiresAt: Number.MAX_SAFE_INTEGER,
+  rememberMe: false,
+  lastLogin: null,
+};
 
 interface AdminSessionTokenPayload extends JWTPayload {
   uid: string;
@@ -34,6 +46,29 @@ export class SessionError extends Error {
     this.name = 'SessionError';
     this.status = status;
   }
+}
+
+type AdminAuthorizationFailure =
+  | 'firebase_user_missing'
+  | 'uid_mismatch'
+  | 'custom_claims_missing'
+  | 'custom_role_invalid'
+  | 'admin_profile_missing'
+  | 'profile_email_mismatch'
+  | 'profile_role_mismatch'
+  | 'admin_profile_inactive';
+
+function logAdminAuthorization(event: string, details: Record<string, unknown>) {
+  // Never include passwords, ID tokens, session tokens, or Firebase credentials in logs.
+  console.info('[admin-auth]', JSON.stringify({ event, ...details }));
+}
+
+function rejectAdminAuthorization(
+  reason: AdminAuthorizationFailure,
+  details: Record<string, unknown>,
+): never {
+  logAdminAuthorization('login_authorization_denied', { reason, ...details });
+  throw new SessionError('You are not authorized to access this admin panel.', 403);
 }
 
 function parseCookies(cookieHeader?: string) {
@@ -170,8 +205,23 @@ export async function recordAuditLog(entry: {
 }
 
 export async function getAdminSession(req: any, permission?: AdminPermission) {
+  // DEVELOPMENT ONLY — bypass cookie, JWT and Firebase Auth checks for CMS demos.
+  if (DEVELOPMENT_ADMIN_MODE) {
+    if (permission && !hasAdminPermission(DEVELOPMENT_ADMIN_USER.role, permission)) {
+      throw new SessionError('You do not have permission to access this resource.', 403);
+    }
+
+    return {
+      admin: DEVELOPMENT_ADMIN_USER,
+      sessionId: 'development-session',
+      profileRef: null,
+      profile: {},
+    };
+  }
+
   const token = getSessionCookie(req);
   if (!token) {
+    logAdminAuthorization('session_missing', { permission: permission || null });
     return null;
   }
 
@@ -180,15 +230,31 @@ export async function getAdminSession(req: any, permission?: AdminPermission) {
     const { docRef, profile } = await getAdminProfile(payload.uid);
 
     if (!profile || profile.status !== 'active') {
+      logAdminAuthorization('session_denied', {
+        reason: !profile ? 'admin_profile_missing' : 'admin_profile_inactive',
+        uid: payload.uid,
+        permission: permission || null,
+      });
       throw new SessionError('Admin account is inactive.');
     }
 
     if (!profile.currentSessionId || profile.currentSessionId !== payload.sessionId) {
+      logAdminAuthorization('session_denied', {
+        reason: 'session_id_mismatch',
+        uid: payload.uid,
+        permission: permission || null,
+      });
       throw new SessionError('Session is no longer valid.');
     }
 
     const role = (profile.role || payload.role) as AdminRole;
     if (permission && !hasAdminPermission(role, permission)) {
+      logAdminAuthorization('session_denied', {
+        reason: 'permission_denied',
+        uid: payload.uid,
+        role,
+        permission,
+      });
       throw new SessionError('You do not have permission to access this resource.', 403);
     }
 
@@ -213,6 +279,10 @@ export async function getAdminSession(req: any, permission?: AdminPermission) {
       throw error;
     }
 
+    logAdminAuthorization('session_denied', {
+      reason: 'token_invalid_or_expired',
+      permission: permission || null,
+    });
     return null;
   }
 }
@@ -236,7 +306,11 @@ export async function authenticateAdminWithPassword(email: string, password: str
 
   try {
     userRecord = await adminAuth.getUserByEmail(normalizedEmail);
-  } catch {
+  } catch (error: any) {
+    logAdminAuthorization('firebase_user_lookup_failed', {
+      email: normalizedEmail,
+      code: error?.code || 'unknown',
+    });
     userRecord = null;
   }
 
@@ -288,15 +362,69 @@ export async function authenticateAdminWithPassword(email: string, password: str
   }
 
   const decoded = await adminAuth.verifyIdToken(data.idToken);
-  const claims = userRecord?.customClaims || {};
-  const role = (claims.role || profile?.role) as AdminRole | undefined;
+  const authenticatedUser = await adminAuth.getUser(decoded.uid);
+  const authenticatedEmail = authenticatedUser.email?.trim().toLowerCase() || '';
+  let authenticatedProfileResult: Awaited<ReturnType<typeof getAdminProfile>>;
+  try {
+    authenticatedProfileResult = await getAdminProfile(decoded.uid);
+  } catch (error: any) {
+    logAdminAuthorization('admin_profile_lookup_failed', {
+      uid: decoded.uid,
+      email: normalizedEmail,
+      code: error?.code || 'unknown',
+    });
+    throw error;
+  }
+  const { docRef: authenticatedProfileRef, profile: authenticatedProfile } = authenticatedProfileResult;
+  const claims = authenticatedUser.customClaims || {};
+  const claimRole = claims.role as AdminRole | undefined;
+  const profileRole = authenticatedProfile?.role as AdminRole | undefined;
+  const profileEmail = authenticatedProfile?.email?.trim().toLowerCase() || '';
+  const diagnostic = {
+    uid: decoded.uid,
+    email: normalizedEmail,
+    firebaseEmail: authenticatedEmail || null,
+    lookupUid: userRecord?.uid || null,
+    profileExists: Boolean(authenticatedProfile),
+    profileStatus: authenticatedProfile?.status || null,
+    claimAdmin: claims.admin === true,
+    claimRole: claimRole || null,
+    profileRole: profileRole || null,
+  };
 
-  if (!claims.admin || !role || !ROLE_PERMISSIONS[role]) {
-    throw new SessionError('You are not authorized to access this admin panel.', 403);
+  if (!userRecord) {
+    rejectAdminAuthorization('firebase_user_missing', diagnostic);
+  }
+  if (userRecord.uid !== decoded.uid || authenticatedUser.uid !== decoded.uid) {
+    rejectAdminAuthorization('uid_mismatch', diagnostic);
+  }
+  if (claims.admin !== true) {
+    rejectAdminAuthorization('custom_claims_missing', diagnostic);
+  }
+  if (!claimRole || !ROLE_PERMISSIONS[claimRole]) {
+    rejectAdminAuthorization('custom_role_invalid', diagnostic);
+  }
+  if (!authenticatedProfile) {
+    rejectAdminAuthorization('admin_profile_missing', diagnostic);
+  }
+  if (authenticatedEmail !== normalizedEmail || profileEmail !== normalizedEmail) {
+    rejectAdminAuthorization('profile_email_mismatch', diagnostic);
+  }
+  if (profileRole !== claimRole) {
+    rejectAdminAuthorization('profile_role_mismatch', diagnostic);
+  }
+  if (authenticatedProfile.status !== 'active') {
+    rejectAdminAuthorization('admin_profile_inactive', diagnostic);
   }
 
+  const role = claimRole;
+  profileRef = authenticatedProfileRef;
+  profile = authenticatedProfile;
+
+  logAdminAuthorization('login_authorization_granted', { ...diagnostic, role });
+
   const now = new Date().toISOString();
-  const name = userRecord.displayName || profile?.name || normalizedEmail;
+  const name = authenticatedUser.displayName || authenticatedProfile.name || normalizedEmail;
 
   await profileRef.set(
     {
@@ -304,7 +432,7 @@ export async function authenticateAdminWithPassword(email: string, password: str
       name,
       email: normalizedEmail,
       role,
-      status: profile?.status || 'active',
+      status: authenticatedProfile.status,
       loginAttempts: 0,
       accountLockedUntil: null,
       lastLogin: now,
@@ -352,6 +480,10 @@ export async function beginAdminSession(req: any, adminUser: { uid: string; emai
 }
 
 export async function endAdminSession(req: any) {
+  if (DEVELOPMENT_ADMIN_MODE) {
+    return;
+  }
+
   const session = await getAdminSession(req);
   if (!session) {
     return;

@@ -1,7 +1,7 @@
-import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import dotenv from 'dotenv';
+import { getScriptFirebaseAdminApp } from './firebaseAdmin.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -15,19 +15,11 @@ function required(name: string) {
 }
 
 async function bootstrap() {
-  const projectId = required('FIREBASE_PROJECT_ID');
-  const clientEmail = required('FIREBASE_CLIENT_EMAIL');
-  const privateKey = required('FIREBASE_PRIVATE_KEY').replace(/\\n/g, '\n');
   const email = required('SUPER_ADMIN_EMAIL').toLowerCase();
   const password = process.env.SUPER_ADMIN_PASSWORD;
   const name = process.env.SUPER_ADMIN_NAME?.trim() || 'Super Admin';
 
-  const app =
-    getApps()[0] ||
-    initializeApp({
-      credential: cert({ projectId, clientEmail, privateKey }),
-      projectId,
-    });
+  const app = getScriptFirebaseAdminApp();
   const auth = getAuth(app);
   const db = getFirestore(app);
 

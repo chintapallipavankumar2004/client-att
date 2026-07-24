@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "bootstrap:super-admin": "tsx scripts/bootstrap-super-admin.ts"
+    "bootstrap:super-admin": "tsx scripts/bootstrap-super-admin.ts",
+    "verify:admin": "tsx scripts/verify-admin.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -17,7 +18,7 @@
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "firebase": "^12.16.0",
-    "firebase-admin": "^14.2.0",
+    "firebase-admin": "^13.5.0",
     "jose": "^5.10.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",

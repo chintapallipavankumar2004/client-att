@@ -8,8 +8,10 @@ import {
   getAdminPath,
   getAdminPermissionForTab,
   hasAdminPermission,
+  ROLE_PERMISSIONS,
 } from '../shared/adminAccess';
 import type { AdminSessionUser } from '../types';
+import { DEVELOPMENT_ADMIN_MODE } from '../shared/adminMode';
 
 interface AdminAuthContextValue {
   adminUser: AdminSessionUser | null;
@@ -22,6 +24,18 @@ interface AdminAuthContextValue {
 }
 
 const AdminAuthContext = createContext<AdminAuthContextValue | undefined>(undefined);
+
+// DEVELOPMENT ONLY — this identity exists only in memory and never creates a Firebase session.
+const DEVELOPMENT_ADMIN_USER: AdminSessionUser = {
+  uid: 'development-admin',
+  email: 'demo-admin@local.invalid',
+  name: 'Development Demo Admin',
+  role: 'super_admin',
+  permissions: ROLE_PERMISSIONS.super_admin,
+  expiresAt: Number.MAX_SAFE_INTEGER,
+  rememberMe: false,
+  lastLogin: null,
+};
 
 export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [adminUser, setAdminUser] = useState<AdminSessionUser | null>(null);
@@ -37,6 +51,10 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const scheduleExpiry = (user: AdminSessionUser | null) => {
     clearExpiryTimer();
+
+    if (DEVELOPMENT_ADMIN_MODE) {
+      return;
+    }
 
     if (!user || typeof window === 'undefined') {
       return;
@@ -55,6 +73,12 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const refreshSession = async () => {
+    if (DEVELOPMENT_ADMIN_MODE) {
+      setAdminUser(DEVELOPMENT_ADMIN_USER);
+      setLoading(false);
+      return DEVELOPMENT_ADMIN_USER;
+    }
+
     try {
       const response = await adminAuthService.getSession();
       const nextUser = response.authenticated ? response.admin : null;
@@ -71,6 +95,12 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   useEffect(() => {
+    if (DEVELOPMENT_ADMIN_MODE) {
+      setAdminUser(DEVELOPMENT_ADMIN_USER);
+      setLoading(false);
+      return;
+    }
+
     void refreshSession();
 
     const handleVisibilityChange = () => {
@@ -87,6 +117,12 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   const login = async (payload: AdminLoginPayload) => {
+    if (DEVELOPMENT_ADMIN_MODE) {
+      void payload;
+      setAdminUser(DEVELOPMENT_ADMIN_USER);
+      return DEVELOPMENT_ADMIN_USER;
+    }
+
     const response = await adminAuthService.login(payload);
     setAdminUser(response.admin);
     scheduleExpiry(response.admin);
@@ -94,6 +130,11 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const logout = async (redirectPath = '/admin/login') => {
+    if (DEVELOPMENT_ADMIN_MODE) {
+      navigateToPath('/admin/dashboard', { replace: true });
+      return;
+    }
+
     try {
       await adminAuthService.logout();
     } finally {
