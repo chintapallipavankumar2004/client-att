@@ -1,22 +1,18 @@
 import React, { useState } from 'react';
 import {
+  ChevronDown,
+  Heart,
+  Menu,
+  Mic,
+  Phone,
   Search,
   ShoppingBag,
-  Heart,
-  User,
-  Truck,
   Sparkles,
-  Phone,
-  ShieldCheck,
-  Menu,
+  Truck,
   X,
-  ChevronDown,
-  LayoutDashboard,
-  Mic,
-  Gift
 } from 'lucide-react';
-import { useStore } from '../context/StoreContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { useStore } from '../context/StoreContext';
 
 export const Header: React.FC = () => {
   const {
@@ -25,7 +21,6 @@ export const Header: React.FC = () => {
     wishlist,
     setIsCartOpen,
     setIsTrackOrderOpen,
-    setIsAdminOpen,
     currentView,
     setCurrentView,
     activeCategoryFilter,
@@ -37,26 +32,28 @@ export const Header: React.FC = () => {
     setActiveAgeFilter,
     products,
     setSelectedProductSlug,
-    announcements
+    announcements,
   } = useStore();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isListeningVoice, setIsListeningVoice] = useState(false);
-  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
 
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Instant Search Autocomplete Suggestions
-  const searchSuggestions = searchQuery.trim().length > 1
-    ? products.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
-      ).slice(0, 5)
-    : [];
+  const searchSuggestions =
+    searchQuery.trim().length > 1
+      ? products
+          .filter(
+            (product) =>
+              product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              product.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase())),
+          )
+          .slice(0, 5)
+      : [];
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSearchSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
     if (searchQuery.trim()) {
       setCurrentView('shop');
       setIsSearchFocused(false);
@@ -65,19 +62,17 @@ export const Header: React.FC = () => {
 
   const handleVoiceSearch = () => {
     setIsListeningVoice(true);
-    // Simulate speech recognition
-    setTimeout(() => {
+    window.setTimeout(() => {
       setSearchQuery('Frock');
       setIsListeningVoice(false);
       setCurrentView('shop');
     }, 1500);
   };
 
-  const activeAnnouncements = announcements.filter(a => a.active);
+  const activeAnnouncements = announcements.filter((announcement) => announcement.active);
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-xs border-b border-rose-100">
-      {/* Top Announcement Bar Ticker */}
       {activeAnnouncements.length > 0 && (
         <div className="bg-gradient-to-r from-rose-600 via-pink-600 to-purple-600 text-white text-xs font-medium py-1.5 px-4 overflow-hidden relative">
           <div className="flex justify-between items-center max-w-7xl mx-auto">
@@ -85,9 +80,7 @@ export const Header: React.FC = () => {
               <span className="bg-white/20 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
                 HOT
               </span>
-              <p className="line-clamp-1 animate-pulse">
-                {activeAnnouncements[0]?.text}
-              </p>
+              <p className="line-clamp-1 animate-pulse">{activeAnnouncements[0]?.text}</p>
             </div>
             <div className="hidden sm:flex items-center gap-4 text-[11px] opacity-90">
               <button
@@ -100,31 +93,21 @@ export const Header: React.FC = () => {
               <a href={`tel:${siteSettings.supportPhone}`} className="flex items-center gap-1 hover:underline">
                 <Phone className="w-3.5 h-3.5" /> {siteSettings.supportPhone}
               </a>
-              <span>|</span>
-              <button
-                onClick={() => setIsAdminOpen(true)}
-                className="bg-amber-400 text-slate-900 font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 hover:bg-amber-300 transition-all cursor-pointer shadow-xs"
-              >
-                <LayoutDashboard className="w-3 h-3" /> Admin CMS Panel
-              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Header Container */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
         <div className="flex items-center justify-between gap-4">
-          {/* Mobile Menu Button */}
           <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            onClick={() => setIsMobileMenuOpen((previous) => !previous)}
             className="lg:hidden p-2 text-slate-700 hover:text-rose-600 rounded-lg hover:bg-rose-50"
             aria-label="Toggle Navigation Menu"
           >
             {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
 
-          {/* Brand Logo */}
           <button
             onClick={() => {
               setCurrentView('home');
@@ -146,16 +129,15 @@ export const Header: React.FC = () => {
             </div>
           </button>
 
-          {/* Search Bar with Autocomplete & Voice Search */}
           <div className="hidden md:block flex-1 max-w-md relative">
             <form onSubmit={handleSearchSubmit} className="relative">
               <input
                 type="text"
                 placeholder="Search frocks, kurtas, onesies, jackets..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+                onBlur={() => window.setTimeout(() => setIsSearchFocused(false), 200)}
                 className="w-full pl-10 pr-12 py-2.5 rounded-full bg-slate-50 border border-slate-200 focus:outline-none focus:border-rose-500 focus:bg-white focus:ring-2 focus:ring-rose-100 text-sm transition-all shadow-inner"
               />
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
@@ -171,13 +153,12 @@ export const Header: React.FC = () => {
               </button>
             </form>
 
-            {/* Autocomplete Suggestions Dropdown */}
             {isSearchFocused && searchSuggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-rose-100 overflow-hidden z-50 p-2">
                 <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 py-1">
                   Suggested Products
                 </div>
-                {searchSuggestions.map(product => (
+                {searchSuggestions.map((product) => (
                   <button
                     key={product.id}
                     onClick={() => {
@@ -196,7 +177,8 @@ export const Header: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-slate-800 truncate">{product.name}</p>
                       <p className="text-[11px] font-bold text-rose-600">
-                        {siteSettings.currencySymbol}{product.price}
+                        {siteSettings.currencySymbol}
+                        {product.price}
                       </p>
                     </div>
                   </button>
@@ -205,18 +187,7 @@ export const Header: React.FC = () => {
             )}
           </div>
 
-          {/* Quick Actions (Admin, Track, Wishlist, Cart) */}
           <div className="flex items-center gap-3">
-            {/* Admin Switcher Button for Mobile/Desktop */}
-            <button
-              onClick={() => setIsAdminOpen(true)}
-              className="lg:hidden p-2 rounded-xl bg-amber-50 text-amber-800 hover:bg-amber-100 flex items-center gap-1 font-bold text-xs border border-amber-200"
-            >
-              <LayoutDashboard className="w-4 h-4 text-amber-600" />
-              <span className="hidden sm:inline">Admin</span>
-            </button>
-
-            {/* Wishlist Button */}
             <button
               onClick={() => {
                 setCurrentView('shop');
@@ -232,7 +203,6 @@ export const Header: React.FC = () => {
               )}
             </button>
 
-            {/* Cart Drawer Trigger */}
             <button
               onClick={() => setIsCartOpen(true)}
               className="relative bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white p-2.5 sm:px-4 sm:py-2.5 rounded-full flex items-center gap-2 shadow-md shadow-rose-200 transition-all transform hover:scale-105 cursor-pointer font-bold text-xs"
@@ -248,14 +218,13 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* Mobile Search Input */}
         <div className="mt-3 md:hidden">
           <form onSubmit={handleSearchSubmit} className="relative">
             <input
               type="text"
               placeholder="Search kids fashion & baby clothes..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(event) => setSearchQuery(event.target.value)}
               className="w-full pl-9 pr-10 py-2 rounded-full bg-slate-100 text-xs border border-slate-200 focus:outline-none focus:border-rose-500"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -266,7 +235,6 @@ export const Header: React.FC = () => {
         </div>
       </div>
 
-      {/* Desktop Main Navigation Links */}
       <nav className="hidden lg:block border-t border-slate-100 bg-slate-50/50 py-2">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between text-xs font-semibold text-slate-700">
           <div className="flex items-center gap-6">
@@ -283,7 +251,6 @@ export const Header: React.FC = () => {
               Home
             </button>
 
-            {/* Shop All */}
             <button
               onClick={() => {
                 setCurrentView('shop');
@@ -297,29 +264,25 @@ export const Header: React.FC = () => {
               Shop All
             </button>
 
-            {/* Categories Dropdown */}
             <div className="relative group">
-              <button
-                onMouseEnter={() => setIsCategoryDropdownOpen(true)}
-                className="flex items-center gap-1 hover:text-rose-600 transition-colors py-1 cursor-pointer"
-              >
+              <button className="flex items-center gap-1 hover:text-rose-600 transition-colors py-1 cursor-pointer">
                 Categories <ChevronDown className="w-3.5 h-3.5" />
               </button>
 
               <div className="absolute top-full left-0 w-64 bg-white rounded-2xl shadow-xl border border-rose-100 py-2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all duration-200 z-50">
-                {categories.map(cat => (
+                {categories.map((category) => (
                   <button
-                    key={cat.id}
+                    key={category.id}
                     onClick={() => {
-                      setActiveCategoryFilter(cat.slug);
+                      setActiveCategoryFilter(category.slug);
                       setCurrentView('shop');
                     }}
                     className="w-full px-4 py-2 text-left hover:bg-rose-50 flex items-center justify-between transition-colors cursor-pointer"
                   >
-                    <span className="font-medium text-slate-800">{cat.name}</span>
-                    {cat.discountPercent ? (
+                    <span className="font-medium text-slate-800">{category.name}</span>
+                    {category.discountPercent ? (
                       <span className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-full font-bold">
-                        {cat.discountPercent}% OFF
+                        {category.discountPercent}% OFF
                       </span>
                     ) : null}
                   </button>
@@ -327,10 +290,9 @@ export const Header: React.FC = () => {
               </div>
             </div>
 
-            {/* Age Groups Quick Bar */}
             <div className="flex items-center gap-1.5">
               <span className="text-slate-400 font-normal uppercase text-[10px]">Age:</span>
-              {ageCategories.slice(0, 5).map(age => (
+              {ageCategories.slice(0, 5).map((age) => (
                 <button
                   key={age.id}
                   onClick={() => {
@@ -370,7 +332,6 @@ export const Header: React.FC = () => {
         </div>
       </nav>
 
-      {/* Mobile Drawer Menu */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
@@ -387,7 +348,7 @@ export const Header: React.FC = () => {
                 }}
                 className="p-2.5 rounded-xl bg-slate-50 text-left hover:bg-rose-50 text-slate-800"
               >
-                🏠 Home
+                Home
               </button>
               <button
                 onClick={() => {
@@ -396,7 +357,7 @@ export const Header: React.FC = () => {
                 }}
                 className="p-2.5 rounded-xl bg-slate-50 text-left hover:bg-rose-50 text-slate-800"
               >
-                🛍️ Shop All
+                Shop All
               </button>
               <button
                 onClick={() => {
@@ -405,44 +366,33 @@ export const Header: React.FC = () => {
                 }}
                 className="p-2.5 rounded-xl bg-slate-50 text-left hover:bg-rose-50 text-slate-800"
               >
-                🚚 Track Order
-              </button>
-              <button
-                onClick={() => {
-                  setIsAdminOpen(true);
-                  setIsMobileMenuOpen(false);
-                }}
-                className="p-2.5 rounded-xl bg-amber-100 text-amber-900 text-left font-bold"
-              >
-                ⚙️ Admin Dashboard
+                Track Order
               </button>
             </div>
 
-            {/* Mobile Categories */}
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Shop Categories</p>
               <div className="flex flex-wrap gap-1.5">
-                {categories.map(cat => (
+                {categories.map((category) => (
                   <button
-                    key={cat.id}
+                    key={category.id}
                     onClick={() => {
-                      setActiveCategoryFilter(cat.slug);
+                      setActiveCategoryFilter(category.slug);
                       setCurrentView('shop');
                       setIsMobileMenuOpen(false);
                     }}
                     className="bg-rose-50 text-rose-800 font-medium px-3 py-1.5 rounded-full text-xs"
                   >
-                    {cat.name}
+                    {category.name}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Mobile Age Groups */}
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Shop By Age</p>
               <div className="flex flex-wrap gap-1.5">
-                {ageCategories.map(age => (
+                {ageCategories.map((age) => (
                   <button
                     key={age.id}
                     onClick={() => {

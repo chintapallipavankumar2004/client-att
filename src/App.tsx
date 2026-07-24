@@ -1,5 +1,7 @@
-import React from 'react';
-import { useStore, StoreProvider } from './context/StoreContext';
+import React, { useEffect } from 'react';
+import { StoreProvider, useStore } from './context/StoreContext';
+import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext';
+import { useBrowserLocation } from './hooks/useBrowserLocation';
 import { AnnouncementBar } from './components/AnnouncementBar';
 import { Header } from './components/Header';
 import { HeroSlider } from './components/HeroSlider';
@@ -18,31 +20,46 @@ import { ProductQuickViewModal } from './components/ProductQuickViewModal';
 import { CheckoutModal } from './components/CheckoutModal';
 import { TrackOrderModal } from './components/TrackOrderModal';
 import { AdminView } from './components/AdminView';
+import { AdminLoginPage } from './components/admin/AdminLoginPage';
+import { buildAdminLoginPath, navigateToPath } from './lib/browserRouting';
+import { getAdminPath, getAdminTabFromPath } from './shared/adminAccess';
 import { Sparkles, ArrowRight, ShieldCheck, Heart } from 'lucide-react';
 
-const StoreContent: React.FC = () => {
-  const {
-    currentView,
-    setCurrentView,
-    isAdminOpen,
-    homepageLayout,
-    products
-  } = useStore();
+const AdminLoadingScreen: React.FC<{ message: string }> = ({ message }) => (
+  <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-4">
+    <div className="text-center space-y-4">
+      <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-500 via-violet-500 to-pink-500 flex items-center justify-center shadow-xl shadow-violet-950/40">
+        <Sparkles className="w-7 h-7 animate-spin-slow" />
+      </div>
+      <p className="text-sm font-semibold text-slate-200">{message}</p>
+    </div>
+  </div>
+);
 
-  if (isAdminOpen) {
-    return <AdminView />;
-  }
+const StorefrontContent: React.FC = () => {
+  const { currentView, setCurrentView, homepageLayout, products } = useStore();
 
-  const newArrivals = (products || []).filter(p => p.isNew || (p as any).isNewArrival);
-  const featuredProducts = (products || []).filter(p => p.isFeatured || p.isBestSeller || p.isTrending);
+  const newArrivals = (products || []).filter((product) => product.isNew || product.isNewArrival);
+  const featuredProducts = (products || []).filter(
+    (product) => product.isFeatured || product.isBestSeller || product.isTrending,
+  );
 
-  const activeSections = (homepageLayout || []).map(sec => ({
-    ...sec,
-    enabled: sec.enabled !== undefined ? sec.enabled : (sec.visible !== undefined ? sec.visible : true),
-    order: sec.order !== undefined ? sec.order : (sec.priority !== undefined ? sec.priority : 1)
+  const activeSections = (homepageLayout || []).map((section) => ({
+    ...section,
+    enabled:
+      section.enabled !== undefined
+        ? section.enabled
+        : section.visible !== undefined
+          ? section.visible
+          : true,
+    order:
+      section.order !== undefined
+        ? section.order
+        : section.priority !== undefined
+          ? section.priority
+          : 1,
   }));
 
-  // Render dynamic Homepage Section
   const renderHomeSection = (sectionId: string) => {
     switch (sectionId) {
       case 'hero_slider':
@@ -75,7 +92,7 @@ const StoreContent: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {newArrivals.slice(0, 4).map(product => (
+                {newArrivals.slice(0, 4).map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>
@@ -96,7 +113,7 @@ const StoreContent: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {featuredProducts.slice(0, 4).map(product => (
+                {featuredProducts.slice(0, 4).map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>
@@ -124,9 +141,9 @@ const StoreContent: React.FC = () => {
           {currentView === 'home' && (
             <div>
               {activeSections
-                .filter(sec => sec.enabled)
+                .filter((section) => section.enabled)
                 .sort((a, b) => a.order - b.order)
-                .map(sec => renderHomeSection(sec.type || sec.id))}
+                .map((section) => renderHomeSection(section.type || section.id))}
             </div>
           )}
 
@@ -141,7 +158,9 @@ const StoreContent: React.FC = () => {
                 About Akshvik Tiny Trends
               </h1>
               <p className="text-sm text-slate-600 leading-relaxed max-w-2xl mx-auto">
-                Akshvik Tiny Trends was born out of a mother's dream to give kids apparel that balances royal festive elegance with 100% skin-friendly organic comfort. Every stitch is crafted without sharp tags or synthetic dyes.
+                Akshvik Tiny Trends was born out of a mother's dream to give kids apparel that balances royal festive
+                elegance with 100% skin-friendly organic comfort. Every stitch is crafted without sharp tags or
+                synthetic dyes.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-6">
                 <div className="p-6 bg-white rounded-3xl border border-rose-100 shadow-md">
@@ -174,20 +193,36 @@ const StoreContent: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white rounded-3xl border border-rose-100 overflow-hidden shadow-md">
-                  <img src="https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&w=800&q=80" alt="Blog 1" className="w-full h-48 object-cover" />
+                  <img
+                    src="https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&w=800&q=80"
+                    alt="Blog 1"
+                    className="w-full h-48 object-cover"
+                  />
                   <div className="p-6 space-y-2">
                     <span className="text-[10px] font-bold text-rose-600 uppercase">Fabric Care</span>
-                    <h3 className="font-black text-slate-900 text-base font-serif">5 Washing Secrets for Newborn Organic Clothes</h3>
-                    <p className="text-xs text-slate-600">Keep soft baby romper fabrics plush and hypoallergenic wash after wash.</p>
+                    <h3 className="font-black text-slate-900 text-base font-serif">
+                      5 Washing Secrets for Newborn Organic Clothes
+                    </h3>
+                    <p className="text-xs text-slate-600">
+                      Keep soft baby romper fabrics plush and hypoallergenic wash after wash.
+                    </p>
                   </div>
                 </div>
 
                 <div className="bg-white rounded-3xl border border-rose-100 overflow-hidden shadow-md">
-                  <img src="https://images.unsplash.com/photo-1622290291468-a28f7a7dc6a8?auto=format&fit=crop&w=800&q=80" alt="Blog 2" className="w-full h-48 object-cover" />
+                  <img
+                    src="https://images.unsplash.com/photo-1622290291468-a28f7a7dc6a8?auto=format&fit=crop&w=800&q=80"
+                    alt="Blog 2"
+                    className="w-full h-48 object-cover"
+                  />
                   <div className="p-6 space-y-2">
                     <span className="text-[10px] font-bold text-rose-600 uppercase">Festive Styling</span>
-                    <h3 className="font-black text-slate-900 text-base font-serif">How to Style Kids for Long Festive Weddings Without Fuss</h3>
-                    <p className="text-xs text-slate-600">Selecting itch-free organza lehengas with pure cotton under-linings.</p>
+                    <h3 className="font-black text-slate-900 text-base font-serif">
+                      How to Style Kids for Long Festive Weddings Without Fuss
+                    </h3>
+                    <p className="text-xs text-slate-600">
+                      Selecting itch-free organza lehengas with pure cotton under-linings.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -197,8 +232,6 @@ const StoreContent: React.FC = () => {
       </div>
 
       <Footer />
-
-      {/* Global Modals & Drawers */}
       <ProductQuickViewModal />
       <CartDrawer />
       <TrackOrderModal />
@@ -206,11 +239,56 @@ const StoreContent: React.FC = () => {
   );
 };
 
-export function App() {
+const RoutedStoreApp: React.FC = () => {
+  const location = useBrowserLocation();
+  const { adminUser, loading } = useAdminAuth();
+
+  useEffect(() => {
+    if (!location.pathname.startsWith('/admin') || location.pathname === '/admin/login') {
+      return;
+    }
+
+    const tab = getAdminTabFromPath(location.pathname);
+    const canonicalPath = getAdminPath(tab);
+
+    if (location.pathname !== canonicalPath) {
+      navigateToPath(canonicalPath, { replace: true });
+    }
+  }, [location.pathname]);
+
+  if (location.pathname === '/admin/login') {
+    return <AdminLoginPage search={location.search} />;
+  }
+
+  if (location.pathname.startsWith('/admin')) {
+    if (loading) {
+      return <AdminLoadingScreen message="Validating your secure admin session..." />;
+    }
+
+    if (!adminUser) {
+      navigateToPath(buildAdminLoginPath(location.pathname), { replace: true });
+      return <AdminLoadingScreen message="Redirecting to admin sign in..." />;
+    }
+
+    return <AdminView />;
+  }
+
+  return <StorefrontContent />;
+};
+
+function AppShell() {
   return (
     <StoreProvider>
-      <StoreContent />
+      <RoutedStoreApp />
     </StoreProvider>
+  );
+}
+
+export function App() {
+  return (
+    <AdminAuthProvider>
+      <AppShell />
+    </AdminAuthProvider>
   );
 }
 

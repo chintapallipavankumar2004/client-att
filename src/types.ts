@@ -1,3 +1,5 @@
+import type { AdminPermission, AdminRole } from './shared/adminAccess';
+
 export interface HeroBanner {
   id: string;
   desktopImage: string;
@@ -258,4 +260,34 @@ export interface HomepageSection {
   visible?: boolean;
   order?: number;
   priority?: number;
+}
+
+export interface AdminSessionUser {
+  uid: string;
+  email: string;
+  name: string;
+  role: AdminRole;
+  permissions: AdminPermission[];
+  expiresAt: number;
+  rememberMe: boolean;
+  lastLogin?: string | null;
+}
+
+export interface StorefrontData {
+  products: Product[];
+  categories: Category[];
+  ageCategories: AgeCategory[];
+  banners: HeroBanner[];
+  announcements: AnnouncementItem[];
+  coupons: Coupon[];
+  reviews: Review[];
+  siteSettings: SiteSettings;
+  sections: HomepageSection[];
+}
+
+export interface AdminDashboardData {
+  orders: Order[];
+  customers: Customer[];
+  coupons: Coupon[];
+  reviews: Review[];
 }

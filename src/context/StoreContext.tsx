@@ -1,59 +1,73 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
-  Product,
-  Category,
+  type AdminTab,
+  getAdminPath,
+  getAdminTabFromPath,
+} from '../shared/adminAccess';
+import type {
   AgeCategory,
-  HeroBanner,
   AnnouncementItem,
-  Order,
+  Category,
   Coupon,
-  Review,
   Customer,
-  SiteSettings,
+  HeroBanner,
   HomepageSection,
-  OrderItem
+  Order,
+  OrderItem,
+  Product,
+  Review,
+  SiteSettings,
 } from '../types';
 import {
-  initialBanners,
-  initialAnnouncements,
-  initialCategories,
   initialAgeCategories,
-  initialProducts,
+  initialAnnouncements,
+  initialBanners,
+  initialCategories,
   initialCoupons,
-  initialOrders,
-  initialCustomers,
+  initialProducts,
   initialReviews,
+  initialSections,
   initialSiteSettings,
-  initialSections
 } from '../data/initialData';
+import {
+  createOrder,
+  fetchAdminDashboardData,
+  fetchStorefrontData,
+  mutateAdminContent,
+  submitReview,
+  type PublicOrderPayload,
+} from '../services/storefrontService';
+import { useAdminAuth } from './AdminAuthContext';
+import { navigateToPath } from '../lib/browserRouting';
 
 interface CartItem extends OrderItem {
   product: Product;
 }
 
-// LocalStorage Helper
+type PublicView = 'home' | 'shop' | 'product' | 'cart' | 'checkout' | 'account' | 'about' | 'blog' | 'contact';
+
 function getStored<T>(key: string, fallback: T): T {
   try {
     const stored = localStorage.getItem(`akshvik_${key}`);
     if (stored) {
       return JSON.parse(stored);
     }
-  } catch (e) {
-    console.error(`Error loading localStorage key akshvik_${key}`, e);
+  } catch (error) {
+    console.error(`Unable to read akshvik_${key}`, error);
   }
+
   return fallback;
 }
 
-function setStored<T>(key: string, value: T): void {
+function setStored<T>(key: string, value: T) {
   try {
     localStorage.setItem(`akshvik_${key}`, JSON.stringify(value));
-  } catch (e) {
-    console.error(`Error writing localStorage key akshvik_${key}`, e);
+  } catch (error) {
+    console.error(`Unable to write akshvik_${key}`, error);
   }
 }
 
 interface StoreContextType {
-  // Store state
   products: Product[];
   categories: Category[];
   ageCategories: AgeCategory[];
@@ -66,38 +80,44 @@ interface StoreContextType {
   siteSettings: SiteSettings;
   sections: HomepageSection[];
   homepageLayout: HomepageSection[];
-  setHomepageLayout: (layout: HomepageSection[]) => void;
+  setHomepageLayout: (layout: HomepageSection[]) => Promise<void>;
   loading: boolean;
 
-  // CRUD actions (Frontend local state persistence)
-  addProduct: (productData: Omit<Product, 'id'>) => Product;
-  updateProduct: (id: string, updates: Partial<Product>) => void;
-  deleteProduct: (id: string) => void;
+  addProduct: (productData: Omit<Product, 'id'>) => Promise<Product>;
+  updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
 
-  addBanner: (bannerData: Omit<HeroBanner, 'id'>) => void;
-  updateBanner: (id: string, updates: Partial<HeroBanner>) => void;
-  deleteBanner: (id: string) => void;
+  addBanner: (bannerData: Omit<HeroBanner, 'id'>) => Promise<void>;
+  updateBanner: (id: string, updates: Partial<HeroBanner>) => Promise<void>;
+  deleteBanner: (id: string) => Promise<void>;
 
-  updateAnnouncement: (id: string, updates: Partial<AnnouncementItem>) => void;
+  updateAnnouncement: (id: string, updates: Partial<AnnouncementItem>) => Promise<void>;
 
-  addCategory: (catData: Omit<Category, 'id'>) => void;
-  updateCategory: (id: string, updates: Partial<Category>) => void;
-  deleteCategory: (id: string) => void;
+  addCategory: (catData: Omit<Category, 'id'>) => Promise<void>;
+  updateCategory: (id: string, updates: Partial<Category>) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
 
-  addOrder: (orderData: any) => Order;
-  updateOrderStatus: (id: string, status: string) => void;
-  updateOrderTracking: (id: string, trackingNumber: string, statusTimeline: any[]) => void;
+  addOrder: (orderData: PublicOrderPayload) => Promise<Order>;
+  updateOrderStatus: (id: string, status: string) => Promise<void>;
+  updateOrderTracking: (id: string, trackingNumber: string, statusTimeline: any[]) => Promise<void>;
 
-  addCoupon: (couponData: Omit<Coupon, 'id'>) => void;
-  deleteCoupon: (id: string) => void;
+  addCoupon: (couponData: Omit<Coupon, 'id'>) => Promise<void>;
+  deleteCoupon: (id: string) => Promise<void>;
 
-  addReview: (reviewData: any) => Review;
-  updateReviewStatus: (id: string, status: 'Approved' | 'Pending' | 'Rejected') => void;
-  deleteReview: (id: string) => void;
+  addReview: (reviewData: {
+    productId: string;
+    productName: string;
+    customerName: string;
+    rating: number;
+    title: string;
+    comment: string;
+  }) => Promise<Review>;
+  updateReviewStatus: (id: string, status: 'Approved' | 'Pending' | 'Rejected') => Promise<void>;
+  updateReviewReply: (id: string, adminReply: string) => Promise<void>;
+  deleteReview: (id: string) => Promise<void>;
 
-  updateSiteSettingsState: (newSettings: Partial<SiteSettings>) => void;
+  updateSiteSettings: (newSettings: Partial<SiteSettings>) => Promise<void>;
 
-  // Cart
   cart: CartItem[];
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
@@ -106,299 +126,572 @@ interface StoreContextType {
   updateCartQuantity: (index: number, qty: number) => void;
   clearCart: () => void;
   cartSubtotal: number;
+  cartDiscount: number;
   cartTotal: number;
   appliedCoupon: Coupon | null;
   applyCoupon: (code: string) => { success: boolean; message: string };
   removeCoupon: () => void;
 
-  // Wishlist
   wishlist: Product[];
   toggleWishlist: (product: Product) => void;
   isInWishlist: (productId: string) => boolean;
 
-  // Quick View & Modals
   quickViewProduct: Product | null;
   setQuickViewProduct: (product: Product | null) => void;
   isTrackOrderOpen: boolean;
   setIsTrackOrderOpen: (open: boolean) => void;
 
-  // Admin Mode
-  isAdminOpen: boolean;
-  setIsAdminOpen: (open: boolean) => void;
-  adminTab: string;
-  setAdminTab: (tab: string) => void;
+  adminTab: AdminTab;
+  setAdminTab: (tab: AdminTab) => void;
 
-  // Navigation & Filters
-  currentView: 'home' | 'shop' | 'product' | 'cart' | 'checkout' | 'account' | 'about' | 'blog' | 'contact' | 'admin';
-  setCurrentView: (view: any) => void;
+  currentView: PublicView;
+  setCurrentView: (view: PublicView) => void;
   selectedProductSlug: string | null;
   setSelectedProductSlug: (slug: string | null) => void;
   searchQuery: string;
-  setSearchQuery: (q: string) => void;
+  setSearchQuery: (query: string) => void;
   activeCategoryFilter: string | null;
-  setActiveCategoryFilter: (cat: string | null) => void;
+  setActiveCategoryFilter: (category: string | null) => void;
   activeAgeFilter: string | null;
   setActiveAgeFilter: (age: string | null) => void;
 
-  // Refetch
   refetchAllData: () => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
+function normalizeProduct(productData: Omit<Product, 'id'>): Omit<Product, 'id'> {
+  const baseName = productData.name || 'New Product';
+  return {
+    shortDescription: productData.shortDescription || productData.description?.slice(0, 140) || baseName,
+    slug: productData.slug || baseName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    discountPercent:
+      typeof productData.discountPercent === 'number'
+        ? productData.discountPercent
+        : Math.max(
+            0,
+            Math.round(
+              ((productData.originalPrice - productData.price) / Math.max(productData.originalPrice, 1)) * 100,
+            ),
+          ),
+    isNew: productData.isNew ?? Boolean(productData.isNewArrival),
+    isNewArrival: productData.isNewArrival ?? productData.isNew ?? false,
+    isTrending: productData.isTrending ?? false,
+    isBestSeller: productData.isBestSeller ?? false,
+    isFeatured: productData.isFeatured ?? true,
+    isFlashDeal: productData.isFlashDeal ?? false,
+    reviewCount: productData.reviewCount ?? 0,
+    rating: productData.rating ?? 5,
+    isBabySafe: productData.isBabySafe ?? true,
+    tags: productData.tags ?? [],
+    createdAt: productData.createdAt || new Date().toISOString(),
+    ...productData,
+  };
+}
+
+function normalizeCategory(categoryData: Omit<Category, 'id'>): Omit<Category, 'id'> {
+  return {
+    description: categoryData.description || `${categoryData.name} collection`,
+    slug: categoryData.slug || categoryData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    active: categoryData.active ?? true,
+    isFeatured: categoryData.isFeatured ?? true,
+    priority: categoryData.priority ?? 1,
+    productCount: categoryData.productCount ?? categoryData.itemCount ?? 0,
+    ...categoryData,
+  };
+}
+
+function normalizeCoupon(couponData: Omit<Coupon, 'id'>): Omit<Coupon, 'id'> {
+  return {
+    code: couponData.code.trim().toUpperCase(),
+    discountType:
+      couponData.discountType === 'percent' || couponData.discountType === 'flat'
+        ? couponData.discountType
+        : 'percent',
+    expiryDate: couponData.expiryDate || '2027-12-31',
+    timesUsed: couponData.timesUsed ?? 0,
+    active: couponData.active ?? true,
+    ...couponData,
+  };
+}
+
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [products, setProducts] = useState<Product[]>(() => getStored('products', initialProducts));
-  const [categories, setCategories] = useState<Category[]>(() => getStored('categories', initialCategories));
-  const [ageCategories] = useState<AgeCategory[]>(() => getStored('ageCategories', initialAgeCategories));
-  const [banners, setBanners] = useState<HeroBanner[]>(() => getStored('banners', initialBanners));
-  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(() => getStored('announcements', initialAnnouncements));
-  const [orders, setOrders] = useState<Order[]>(() => getStored('orders', initialOrders));
-  const [coupons, setCoupons] = useState<Coupon[]>(() => getStored('coupons', initialCoupons));
-  const [reviews, setReviews] = useState<Review[]>(() => getStored('reviews', initialReviews));
-  const [customers] = useState<Customer[]>(() => getStored('customers', initialCustomers));
-  const [sections, setSections] = useState<HomepageSection[]>(() => getStored('sections', initialSections));
-  const [homepageLayout, setHomepageLayoutState] = useState<HomepageSection[]>(() => getStored('sections', initialSections));
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>(() => getStored('siteSettings', initialSiteSettings));
+  const { adminUser } = useAdminAuth();
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [ageCategories, setAgeCategories] = useState<AgeCategory[]>(initialAgeCategories);
+  const [banners, setBanners] = useState<HeroBanner[]>(initialBanners);
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(initialAnnouncements);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>(initialCoupons);
+  const [reviews, setReviews] = useState<Review[]>(initialReviews.filter((review) => review.status === 'Approved'));
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [sections, setSections] = useState<HomepageSection[]>(initialSections);
+  const [homepageLayout, setHomepageLayoutState] = useState<HomepageSection[]>(initialSections);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(initialSiteSettings);
 
-  // Local interactive state
+  const [loading, setLoading] = useState(true);
+
   const [cart, setCart] = useState<CartItem[]>(() => getStored('cart', []));
-  const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const [wishlist, setWishlist] = useState<Product[]>(() => getStored('wishlist', []));
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
 
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
-  const [isTrackOrderOpen, setIsTrackOrderOpen] = useState<boolean>(false);
+  const [isTrackOrderOpen, setIsTrackOrderOpen] = useState(false);
 
-  // Navigation
-  const [currentView, setCurrentView] = useState<'home' | 'shop' | 'product' | 'cart' | 'checkout' | 'account' | 'about' | 'blog' | 'contact' | 'admin'>('home');
+  const [currentView, setCurrentView] = useState<PublicView>('home');
   const [selectedProductSlug, setSelectedProductSlug] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string | null>(null);
   const [activeAgeFilter, setActiveAgeFilter] = useState<string | null>(null);
+  const [adminTab, setAdminTabState] = useState<AdminTab>(() => getAdminTabFromPath(window.location.pathname));
 
-  // Admin
-  const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
-  const [adminTab, setAdminTab] = useState<string>('dashboard');
+  useEffect(() => {
+    setStored('cart', cart);
+  }, [cart]);
 
-  // Persistence triggers
-  useEffect(() => { setStored('products', products); }, [products]);
-  useEffect(() => { setStored('categories', categories); }, [categories]);
-  useEffect(() => { setStored('banners', banners); }, [banners]);
-  useEffect(() => { setStored('announcements', announcements); }, [announcements]);
-  useEffect(() => { setStored('orders', orders); }, [orders]);
-  useEffect(() => { setStored('coupons', coupons); }, [coupons]);
-  useEffect(() => { setStored('reviews', reviews); }, [reviews]);
-  useEffect(() => { setStored('sections', homepageLayout); }, [homepageLayout]);
-  useEffect(() => { setStored('siteSettings', siteSettings); }, [siteSettings]);
-  useEffect(() => { setStored('cart', cart); }, [cart]);
-  useEffect(() => { setStored('wishlist', wishlist); }, [wishlist]);
+  useEffect(() => {
+    setStored('wishlist', wishlist);
+  }, [wishlist]);
 
-  // Apply dynamic theme colors to root
   useEffect(() => {
     if (siteSettings.primaryColor) {
       document.documentElement.style.setProperty('--color-primary', siteSettings.primaryColor);
     }
   }, [siteSettings]);
 
-  const setHomepageLayout = (layout: HomepageSection[]) => {
-    setHomepageLayoutState(layout);
-    setSections(layout);
-  };
-
-  // CRUD Implementations for frontend-only
-  const addProduct = (productData: Omit<Product, 'id'>): Product => {
-    const newProd: Product = {
-      ...productData,
-      id: `p-${Date.now()}`,
-      slug: productData.slug || productData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      createdAt: new Date().toISOString()
-    };
-    setProducts(prev => [newProd, ...prev]);
-    return newProd;
-  };
-
-  const updateProduct = (id: string, updates: Partial<Product>) => {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
-  };
-
-  const deleteProduct = (id: string) => {
-    setProducts(prev => prev.filter(p => p.id !== id));
-  };
-
-  const addBanner = (bannerData: Omit<HeroBanner, 'id'>) => {
-    const newBanner: HeroBanner = {
-      ...bannerData,
-      id: `b-${Date.now()}`
-    };
-    setBanners(prev => [...prev, newBanner]);
-  };
-
-  const updateBanner = (id: string, updates: Partial<HeroBanner>) => {
-    setBanners(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
-  };
-
-  const deleteBanner = (id: string) => {
-    setBanners(prev => prev.filter(b => b.id !== id));
-  };
-
-  const updateAnnouncement = (id: string, updates: Partial<AnnouncementItem>) => {
-    setAnnouncements(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
-  };
-
-  const addCategory = (catData: Omit<Category, 'id'>) => {
-    const newCat: Category = {
-      ...catData,
-      id: `c-${Date.now()}`,
-      slug: catData.slug || catData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-    };
-    setCategories(prev => [...prev, newCat]);
-  };
-
-  const updateCategory = (id: string, updates: Partial<Category>) => {
-    setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-  };
-
-  const deleteCategory = (id: string) => {
-    setCategories(prev => prev.filter(c => c.id !== id));
-  };
-
-  const addOrder = (orderData: any): Order => {
-    const newOrder: Order = {
-      id: `ord-${Date.now()}`,
-      orderNumber: `ATT-${Math.floor(100000 + Math.random() * 900000)}`,
-      date: new Date().toISOString(),
-      customer: {
-        name: orderData.customer?.name || `${orderData.customer?.firstName || 'Customer'} ${orderData.customer?.lastName || ''}`.trim(),
-        email: orderData.customer?.email || 'customer@example.com',
-        phone: orderData.customer?.phone || '+91 9876543210',
-        address: {
-          street: orderData.customer?.address || orderData.customer?.street || '123 Fashion Lane',
-          city: orderData.customer?.city || 'Hyderabad',
-          state: orderData.customer?.state || 'Telangana',
-          zip: orderData.customer?.zip || orderData.customer?.pincode || '500033',
-          country: 'India'
-        }
-      },
-      items: orderData.items || [],
-      subtotal: orderData.subtotal || 0,
-      discount: orderData.discount || 0,
-      shipping: orderData.shippingFee || orderData.shipping || 0,
-      tax: orderData.tax || 0,
-      total: orderData.total || 0,
-      status: 'Processing',
-      paymentMethod: orderData.paymentMethod || 'COD',
-      paymentStatus: orderData.paymentMethod === 'Online' ? 'Paid' : 'Pending',
-      trackingNumber: `EXP${Math.floor(10000000 + Math.random() * 90000000)}IN`,
-      trackingCarrier: 'Delhivery Express',
-      timeline: [
-        { status: 'Placed', title: 'Order Placed', description: 'Your order was received', date: new Date().toLocaleDateString(), completed: true }
-      ]
-    };
-    setOrders(prev => [newOrder, ...prev]);
-    return newOrder;
-  };
-
-  const updateOrderStatus = (id: string, status: string) => {
-    setOrders(prev => prev.map(o => {
-      if (o.id === id) {
-        const timeline = [...(o.timeline || [])];
-        timeline.push({ status, title: `Order ${status}`, description: `Status updated to ${status}`, date: new Date().toLocaleDateString(), completed: true });
-        return { ...o, status: status as any, timeline };
+  useEffect(() => {
+    const syncAdminTabFromLocation = () => {
+      if (window.location.pathname.startsWith('/admin')) {
+        setAdminTabState(getAdminTabFromPath(window.location.pathname));
       }
-      return o;
-    }));
-  };
-
-  const updateOrderTracking = (id: string, trackingNumber: string, statusTimeline: any[]) => {
-    setOrders(prev => prev.map(o => {
-      if (o.id === id) {
-        const timeline = [...(o.timeline || [])];
-        if (statusTimeline && statusTimeline[0]) {
-          timeline.push({ status: 'Shipped', title: 'Carrier Updated', description: statusTimeline[0].status || 'In Transit', date: new Date().toLocaleDateString(), completed: true });
-        }
-        return { ...o, trackingNumber, timeline };
-      }
-      return o;
-    }));
-  };
-
-  const addCoupon = (couponData: Omit<Coupon, 'id'>) => {
-    const newCoupon: Coupon = {
-      ...couponData,
-      id: `cp-${Date.now()}`
     };
-    setCoupons(prev => [...prev, newCoupon]);
+
+    syncAdminTabFromLocation();
+    window.addEventListener('popstate', syncAdminTabFromLocation);
+    return () => window.removeEventListener('popstate', syncAdminTabFromLocation);
+  }, []);
+
+  const loadStorefrontData = async () => {
+    const data = await fetchStorefrontData();
+    setProducts(data.products);
+    setCategories(data.categories);
+    setAgeCategories(data.ageCategories);
+    setBanners(data.banners);
+    setAnnouncements(data.announcements);
+    setCoupons(data.coupons);
+    setReviews(data.reviews);
+    setSections(data.sections);
+    setHomepageLayoutState(data.sections);
+    setSiteSettings(data.siteSettings);
   };
 
-  const deleteCoupon = (id: string) => {
-    setCoupons(prev => prev.filter(c => c.id !== id));
-  };
+  const loadAdminData = async () => {
+    if (!adminUser) {
+      setOrders([]);
+      setCustomers([]);
+      return;
+    }
 
-  const addReview = (reviewData: any): Review => {
-    const newRev: Review = {
-      id: `rev-${Date.now()}`,
-      productId: reviewData.productId,
-      productName: reviewData.productName || 'Kids Item',
-      customerName: reviewData.customerName || 'Happy Parent',
-      rating: reviewData.rating || 5,
-      title: reviewData.title || 'Great Quality!',
-      comment: reviewData.comment || '',
-      verifiedPurchase: true,
-      date: new Date().toISOString().split('T')[0],
-      status: 'Approved',
-      featured: false
-    };
-    setReviews(prev => [newRev, ...prev]);
-    return newRev;
-  };
-
-  const updateReviewStatus = (id: string, status: 'Approved' | 'Pending' | 'Rejected') => {
-    setReviews(prev => prev.map(r => r.id === id ? { ...r, status } : r));
-  };
-
-  const deleteReview = (id: string) => {
-    setReviews(prev => prev.filter(r => r.id !== id));
-  };
-
-  const updateSiteSettingsState = (newSettings: Partial<SiteSettings>) => {
-    setSiteSettings(prev => ({ ...prev, ...newSettings }));
+    const data = await fetchAdminDashboardData();
+    setOrders(data.orders);
+    setCustomers(data.customers);
+    setCoupons(data.coupons);
+    setReviews(data.reviews);
   };
 
   const refetchAllData = async () => {
-    // Pure frontend refresh if needed
-    setLoading(false);
+    setLoading(true);
+    try {
+      await loadStorefrontData();
+      await loadAdminData();
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Cart helper functions
+  useEffect(() => {
+    void refetchAllData();
+  }, [adminUser?.uid]);
+
+  const setHomepageLayout = async (layout: HomepageSection[]) => {
+    const response = await mutateAdminContent<HomepageSection>({
+      collection: 'sections',
+      action: 'replaceCollection',
+      documents: layout.map((section, index) => ({
+        ...section,
+        enabled:
+          section.enabled !== undefined
+            ? section.enabled
+            : section.visible !== undefined
+              ? section.visible
+              : true,
+        visible:
+          section.visible !== undefined
+            ? section.visible
+            : section.enabled !== undefined
+              ? section.enabled
+              : true,
+        order: index + 1,
+        priority: index + 1,
+      })),
+    });
+
+    const nextSections = response.documents || layout;
+    setSections(nextSections);
+    setHomepageLayoutState(nextSections);
+  };
+
+  const addProduct = async (productData: Omit<Product, 'id'>) => {
+    const response = await mutateAdminContent<Product>({
+      collection: 'products',
+      action: 'create',
+      data: normalizeProduct(productData),
+    });
+
+    const created = response.document as Product;
+    setProducts((previous) => [created, ...previous]);
+    return created;
+  };
+
+  const updateProduct = async (id: string, updates: Partial<Product>) => {
+    const response = await mutateAdminContent<Product>({
+      collection: 'products',
+      action: 'update',
+      documentId: id,
+      data: updates,
+    });
+
+    if (response.document) {
+      setProducts((previous) =>
+        previous.map((product) => (product.id === id ? (response.document as Product) : product)),
+      );
+    }
+  };
+
+  const deleteProduct = async (id: string) => {
+    await mutateAdminContent({
+      collection: 'products',
+      action: 'delete',
+      documentId: id,
+    });
+
+    setProducts((previous) => previous.filter((product) => product.id !== id));
+  };
+
+  const addBanner = async (bannerData: Omit<HeroBanner, 'id'>) => {
+    const response = await mutateAdminContent<HeroBanner>({
+      collection: 'banners',
+      action: 'create',
+      data: bannerData,
+    });
+
+    if (response.document) {
+      setBanners((previous) => [...previous, response.document as HeroBanner]);
+    }
+  };
+
+  const updateBanner = async (id: string, updates: Partial<HeroBanner>) => {
+    const response = await mutateAdminContent<HeroBanner>({
+      collection: 'banners',
+      action: 'update',
+      documentId: id,
+      data: updates,
+    });
+
+    if (response.document) {
+      setBanners((previous) =>
+        previous
+          .map((banner) => (banner.id === id ? (response.document as HeroBanner) : banner))
+          .sort((a, b) => a.priority - b.priority),
+      );
+    }
+  };
+
+  const deleteBanner = async (id: string) => {
+    await mutateAdminContent({
+      collection: 'banners',
+      action: 'delete',
+      documentId: id,
+    });
+
+    setBanners((previous) => previous.filter((banner) => banner.id !== id));
+  };
+
+  const updateAnnouncement = async (id: string, updates: Partial<AnnouncementItem>) => {
+    const response = await mutateAdminContent<AnnouncementItem>({
+      collection: 'announcements',
+      action: 'update',
+      documentId: id,
+      data: updates,
+    });
+
+    if (response.document) {
+      setAnnouncements((previous) =>
+        previous.map((announcement) =>
+          announcement.id === id ? (response.document as AnnouncementItem) : announcement,
+        ),
+      );
+    }
+  };
+
+  const addCategory = async (catData: Omit<Category, 'id'>) => {
+    const response = await mutateAdminContent<Category>({
+      collection: 'categories',
+      action: 'create',
+      data: normalizeCategory(catData),
+    });
+
+    if (response.document) {
+      setCategories((previous) =>
+        [...previous, response.document as Category].sort((a, b) => a.priority - b.priority),
+      );
+    }
+  };
+
+  const updateCategory = async (id: string, updates: Partial<Category>) => {
+    const response = await mutateAdminContent<Category>({
+      collection: 'categories',
+      action: 'update',
+      documentId: id,
+      data: updates,
+    });
+
+    if (response.document) {
+      setCategories((previous) =>
+        previous
+          .map((category) => (category.id === id ? (response.document as Category) : category))
+          .sort((a, b) => a.priority - b.priority),
+      );
+    }
+  };
+
+  const deleteCategory = async (id: string) => {
+    await mutateAdminContent({
+      collection: 'categories',
+      action: 'delete',
+      documentId: id,
+    });
+
+    setCategories((previous) => previous.filter((category) => category.id !== id));
+  };
+
+  const addOrder = async (orderData: PublicOrderPayload) => {
+    const response = await createOrder({
+      ...orderData,
+      couponCode: appliedCoupon?.code || null,
+    });
+
+    const createdOrder = response.order;
+    if (adminUser) {
+      setOrders((previous) => [createdOrder, ...previous]);
+    }
+
+    clearCart();
+    return createdOrder;
+  };
+
+  const updateOrderStatus = async (id: string, status: string) => {
+    const current = orders.find((order) => order.id === id);
+    if (!current) {
+      return;
+    }
+
+    const timeline = [
+      ...(current.timeline || []),
+      {
+        status,
+        title: `Order ${status}`,
+        description: `Status updated to ${status}`,
+        date: new Date().toLocaleString('en-IN'),
+        completed: true,
+      },
+    ];
+
+    const response = await mutateAdminContent<Order>({
+      collection: 'orders',
+      action: 'update',
+      documentId: id,
+      data: {
+        status,
+        timeline,
+      },
+    });
+
+    if (response.document) {
+      setOrders((previous) =>
+        previous.map((order) => (order.id === id ? (response.document as Order) : order)),
+      );
+    }
+  };
+
+  const updateOrderTracking = async (id: string, trackingNumber: string, statusTimeline: any[]) => {
+    const current = orders.find((order) => order.id === id);
+    if (!current) {
+      return;
+    }
+
+    const nextTimeline = [
+      ...(current.timeline || []),
+      {
+        status: 'Shipped',
+        title: 'Carrier Updated',
+        description: statusTimeline?.[0]?.status || 'Shipment status updated.',
+        date: new Date().toLocaleString('en-IN'),
+        completed: true,
+      },
+    ];
+
+    const response = await mutateAdminContent<Order>({
+      collection: 'orders',
+      action: 'update',
+      documentId: id,
+      data: {
+        trackingNumber,
+        timeline: nextTimeline,
+      },
+    });
+
+    if (response.document) {
+      setOrders((previous) =>
+        previous.map((order) => (order.id === id ? (response.document as Order) : order)),
+      );
+    }
+  };
+
+  const addCoupon = async (couponData: Omit<Coupon, 'id'>) => {
+    const response = await mutateAdminContent<Coupon>({
+      collection: 'coupons',
+      action: 'create',
+      data: normalizeCoupon(couponData),
+    });
+
+    if (response.document) {
+      setCoupons((previous) => [...previous, response.document as Coupon]);
+    }
+  };
+
+  const deleteCoupon = async (id: string) => {
+    await mutateAdminContent({
+      collection: 'coupons',
+      action: 'delete',
+      documentId: id,
+    });
+
+    setCoupons((previous) => previous.filter((coupon) => coupon.id !== id));
+    if (appliedCoupon?.id === id) {
+      setAppliedCoupon(null);
+    }
+  };
+
+  const addReview = async (reviewData: {
+    productId: string;
+    productName: string;
+    customerName: string;
+    rating: number;
+    title: string;
+    comment: string;
+  }) => {
+    const response = await submitReview(reviewData);
+    const created = response.review;
+    setReviews((previous) => [created, ...previous]);
+    return created;
+  };
+
+  const updateReviewStatus = async (id: string, status: 'Approved' | 'Pending' | 'Rejected') => {
+    const response = await mutateAdminContent<Review>({
+      collection: 'reviews',
+      action: 'update',
+      documentId: id,
+      data: {
+        status,
+      },
+    });
+
+    if (response.document) {
+      setReviews((previous) =>
+        previous.map((review) => (review.id === id ? (response.document as Review) : review)),
+      );
+    }
+  };
+
+  const updateReviewReply = async (id: string, adminReply: string) => {
+    const response = await mutateAdminContent<Review>({
+      collection: 'reviews',
+      action: 'update',
+      documentId: id,
+      data: {
+        adminReply,
+      },
+    });
+
+    if (response.document) {
+      setReviews((previous) =>
+        previous.map((review) => (review.id === id ? (response.document as Review) : review)),
+      );
+    }
+  };
+
+  const deleteReview = async (id: string) => {
+    await mutateAdminContent({
+      collection: 'reviews',
+      action: 'delete',
+      documentId: id,
+    });
+
+    setReviews((previous) => previous.filter((review) => review.id !== id));
+  };
+
+  const updateSiteSettings = async (newSettings: Partial<SiteSettings>) => {
+    const response = await mutateAdminContent<SiteSettings>({
+      collection: 'settings',
+      action: 'update',
+      documentId: 'storefront',
+      data: newSettings,
+    });
+
+    if (response.document) {
+      setSiteSettings((response.document as SiteSettings) || siteSettings);
+    } else {
+      setSiteSettings((previous) => ({ ...previous, ...newSettings }));
+    }
+  };
+
   const addToCart = (product: Product, size: string, color: string, ageGroup: string, quantity = 1) => {
-    setCart(prev => {
-      const existingIdx = prev.findIndex(item => item.productId === product.id && item.size === size && item.color === color);
-      if (existingIdx !== -1) {
-        const copy = [...prev];
-        copy[existingIdx].quantity += quantity;
-        return copy;
-      } else {
-        const newItem: CartItem = {
+    setCart((previous) => {
+      const existingIndex = previous.findIndex(
+        (item) => item.productId === product.id && item.size === size && item.color === color,
+      );
+
+      if (existingIndex !== -1) {
+        const next = [...previous];
+        next[existingIndex].quantity += quantity;
+        return next;
+      }
+
+      return [
+        ...previous,
+        {
           productId: product.id,
           name: product.name,
           image: product.images[0] || '',
-          color: color || (product.colors[0]?.name || 'Standard'),
-          size: size || (product.sizes[0] || '1Y'),
-          ageGroup: ageGroup || (product.ageGroups[0] || '1-2Y'),
+          color: color || product.colors[0]?.name || 'Standard',
+          size: size || product.sizes[0] || '1Y',
+          ageGroup: ageGroup || product.ageGroups[0] || '1-2Y',
           price: product.price,
           quantity,
-          product
-        };
-        return [...prev, newItem];
-      }
+          product,
+        },
+      ];
     });
+
     setIsCartOpen(true);
   };
 
   const removeFromCart = (index: number) => {
-    setCart(prev => prev.filter((_, i) => i !== index));
+    setCart((previous) => previous.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const updateCartQuantity = (index: number, qty: number) => {
@@ -406,10 +699,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       removeFromCart(index);
       return;
     }
-    setCart(prev => {
-      const copy = [...prev];
-      copy[index].quantity = qty;
-      return copy;
+
+    setCart((previous) => {
+      const next = [...previous];
+      next[index].quantity = qty;
+      return next;
     });
   };
 
@@ -420,136 +714,178 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const cartSubtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  let discountAmount = 0;
+  let cartDiscount = 0;
   if (appliedCoupon) {
     if (appliedCoupon.discountType === 'percent') {
-      discountAmount = Math.round((cartSubtotal * appliedCoupon.discountValue) / 100);
-      if (appliedCoupon.maxDiscount && discountAmount > appliedCoupon.maxDiscount) {
-        discountAmount = appliedCoupon.maxDiscount;
+      cartDiscount = Math.round((cartSubtotal * appliedCoupon.discountValue) / 100);
+      if (appliedCoupon.maxDiscount && cartDiscount > appliedCoupon.maxDiscount) {
+        cartDiscount = appliedCoupon.maxDiscount;
       }
     } else {
-      discountAmount = appliedCoupon.discountValue;
+      cartDiscount = appliedCoupon.discountValue;
     }
   }
 
-  const shippingFee = cartSubtotal >= siteSettings.freeShippingThreshold || cartSubtotal === 0 ? 0 : siteSettings.shippingFee;
-  const taxAmount = Math.round(((cartSubtotal - discountAmount) * siteSettings.taxPercent) / 100);
-  const cartTotal = Math.max(0, cartSubtotal - discountAmount + shippingFee + taxAmount);
+  const shippingFee =
+    cartSubtotal >= siteSettings.freeShippingThreshold || cartSubtotal === 0 ? 0 : siteSettings.shippingFee;
+  const taxAmount = Math.round(((cartSubtotal - cartDiscount) * siteSettings.taxPercent) / 100);
+  const cartTotal = Math.max(0, cartSubtotal - cartDiscount + shippingFee + taxAmount);
 
   const applyCoupon = (code: string) => {
-    const cleanCode = code.trim().toUpperCase();
-    const found = coupons.find(c => c.code === cleanCode && c.active);
+    const normalizedCode = code.trim().toUpperCase();
+    const found = coupons.find((coupon) => coupon.code === normalizedCode && coupon.active);
+
     if (!found) {
-      return { success: false, message: 'Invalid or expired coupon code.' };
+      return {
+        success: false,
+        message: 'Invalid or expired coupon code.',
+      };
     }
+
     if (cartSubtotal < found.minSpend) {
-      return { success: false, message: `Minimum purchase of ${siteSettings.currencySymbol}${found.minSpend} required for code ${found.code}.` };
+      return {
+        success: false,
+        message: `Minimum purchase of ${siteSettings.currencySymbol}${found.minSpend} required for code ${found.code}.`,
+      };
     }
+
     setAppliedCoupon(found);
-    return { success: true, message: `Coupon ${found.code} applied successfully!` };
+    return {
+      success: true,
+      message: `Coupon ${found.code} applied successfully.`,
+    };
   };
 
   const removeCoupon = () => {
     setAppliedCoupon(null);
   };
 
-  // Wishlist
   const toggleWishlist = (product: Product) => {
-    setWishlist(prev => {
-      const exists = prev.some(p => p.id === product.id);
-      if (exists) {
-        return prev.filter(p => p.id !== product.id);
-      } else {
-        return [...prev, product];
-      }
+    setWishlist((previous) => {
+      const exists = previous.some((wishlistProduct) => wishlistProduct.id === product.id);
+      return exists
+        ? previous.filter((wishlistProduct) => wishlistProduct.id !== product.id)
+        : [...previous, product];
     });
   };
 
-  const isInWishlist = (productId: string) => wishlist.some(p => p.id === productId);
+  const isInWishlist = (productId: string) => wishlist.some((product) => product.id === productId);
 
-  return (
-    <StoreContext.Provider
-      value={{
-        products,
-        categories,
-        ageCategories,
-        banners,
-        announcements,
-        orders,
-        coupons,
-        reviews,
-        customers,
-        siteSettings,
-        sections,
-        homepageLayout,
-        setHomepageLayout,
-        loading,
+  const setAdminTab = (tab: AdminTab) => {
+    setAdminTabState(tab);
+    navigateToPath(getAdminPath(tab));
+  };
 
-        addProduct,
-        updateProduct,
-        deleteProduct,
-        addBanner,
-        updateBanner,
-        deleteBanner,
-        updateAnnouncement,
-        addCategory,
-        updateCategory,
-        deleteCategory,
-        addOrder,
-        updateOrderStatus,
-        updateOrderTracking,
-        addCoupon,
-        deleteCoupon,
-        addReview,
-        updateReviewStatus,
-        deleteReview,
-        updateSiteSettingsState,
-
-        cart,
-        isCartOpen,
-        setIsCartOpen,
-        addToCart,
-        removeFromCart,
-        updateCartQuantity,
-        clearCart,
-        cartSubtotal,
-        cartTotal,
-        appliedCoupon,
-        applyCoupon,
-        removeCoupon,
-        wishlist,
-        toggleWishlist,
-        isInWishlist,
-        quickViewProduct,
-        setQuickViewProduct,
-        isTrackOrderOpen,
-        setIsTrackOrderOpen,
-        isAdminOpen,
-        setIsAdminOpen,
-        adminTab,
-        setAdminTab,
-        currentView,
-        setCurrentView,
-        selectedProductSlug,
-        setSelectedProductSlug,
-        searchQuery,
-        setSearchQuery,
-        activeCategoryFilter,
-        setActiveCategoryFilter,
-        activeAgeFilter,
-        setActiveAgeFilter,
-        refetchAllData
-      }}
-    >
-      {children}
-    </StoreContext.Provider>
+  const value = useMemo<StoreContextType>(
+    () => ({
+      products,
+      categories,
+      ageCategories,
+      banners,
+      announcements,
+      orders,
+      coupons,
+      reviews,
+      customers,
+      siteSettings,
+      sections,
+      homepageLayout,
+      setHomepageLayout,
+      loading,
+      addProduct,
+      updateProduct,
+      deleteProduct,
+      addBanner,
+      updateBanner,
+      deleteBanner,
+      updateAnnouncement,
+      addCategory,
+      updateCategory,
+      deleteCategory,
+      addOrder,
+      updateOrderStatus,
+      updateOrderTracking,
+      addCoupon,
+      deleteCoupon,
+      addReview,
+      updateReviewStatus,
+      updateReviewReply,
+      deleteReview,
+      updateSiteSettings,
+      cart,
+      isCartOpen,
+      setIsCartOpen,
+      addToCart,
+      removeFromCart,
+      updateCartQuantity,
+      clearCart,
+      cartSubtotal,
+      cartDiscount,
+      cartTotal,
+      appliedCoupon,
+      applyCoupon,
+      removeCoupon,
+      wishlist,
+      toggleWishlist,
+      isInWishlist,
+      quickViewProduct,
+      setQuickViewProduct,
+      isTrackOrderOpen,
+      setIsTrackOrderOpen,
+      adminTab,
+      setAdminTab,
+      currentView,
+      setCurrentView,
+      selectedProductSlug,
+      setSelectedProductSlug,
+      searchQuery,
+      setSearchQuery,
+      activeCategoryFilter,
+      setActiveCategoryFilter,
+      activeAgeFilter,
+      setActiveAgeFilter,
+      refetchAllData,
+    }),
+    [
+      products,
+      categories,
+      ageCategories,
+      banners,
+      announcements,
+      orders,
+      coupons,
+      reviews,
+      customers,
+      siteSettings,
+      sections,
+      homepageLayout,
+      loading,
+      cart,
+      isCartOpen,
+      cartSubtotal,
+      cartDiscount,
+      cartTotal,
+      appliedCoupon,
+      wishlist,
+      quickViewProduct,
+      isTrackOrderOpen,
+      adminTab,
+      currentView,
+      selectedProductSlug,
+      searchQuery,
+      activeCategoryFilter,
+      activeAgeFilter,
+    ],
   );
+
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 };
 
 export const useStore = () => {
   const context = useContext(StoreContext);
   if (!context) {
-    throw new Error('useStore must be used within a StoreProvider');
+    throw new Error('useStore must be used within a StoreProvider.');
   }
+
   return context;
 };
